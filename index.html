@@ -1,0 +1,857 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="height=device-height, width=device-width, initial-scale=1.0, minimal-ui">
+<title>&#128104;&#127823;</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: #cdc6b7;
+  font-size: 16px;
+}
+
+.wrapper {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+canvas {
+  border: solid 5px black;
+  margin: 0;
+  padding: 0;
+  image-rendering: optimizeSpeed;             /* Older versions of FF          */
+  image-rendering: -moz-crisp-edges;          /* FF 6.0+                       */
+  image-rendering: -webkit-optimize-contrast; /* Safari                        */
+  image-rendering: -o-crisp-edges;            /* OS X & Windows Opera (12.02+) */
+  image-rendering: pixelated;                 /* Awesome future-browsers       */
+  -ms-interpolation-mode: nearest-neighbor;   /* IE                            */
+}
+
+#canvas {
+  width:100%;
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div id="canvasHolder" class="canvasHolder">
+    <canvas id="canvas" width="800" height="600" style="background:#000000;" ></canvas></canvas>
+  </div>
+</div>
+
+<audio id="title_music" src="title_music.mp3" preload="auto" loop muted ></audio>
+<audio id="ingame_music" src="ingame_music.mp3" preload="auto" loop muted ></audio>
+<audio id="score_music" src="score_music.mp3" preload="auto" loop muted ></audio>
+<audio id="title_voice" src="title_voice.mp3" preload="auto" muted ></audio>
+<audio id="splash" src="splash.mp3" preload="auto" muted ></audio>
+<audio id="sound_horse" src="sound_horse.mp3" preload="auto" muted ></audio>
+<audio id="sound_cat" src="sound_cat.mp3" preload="auto" muted ></audio>
+<audio id="sound_dog" src="sound_dog.mp3" preload="auto" muted ></audio>
+<audio id="sound_apple" src="sound_apple.mp3" preload="auto" muted ></audio>
+<audio id="piano" src="piano.mp3" preload="auto" muted ></audio>
+<script>
+
+function isMobileDevice() {
+    return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf('IEMobile') !== -1);
+};
+
+if (isMobileDevice()) {
+  document.getElementById('canvas').remove();
+  document.getElementById('canvasHolder').innerHTML = 'Lo siento, esta aplicación solo funcionará en una <strong>DESKTOP COMPUTER</strong>, no en una tableta o un teléfono.<br /><br />Visita www.vanooij.nl/juan en un DESKTOP COMPUTER por favor.';
+};
+
+// set some vars that handle key mapping
+var KEYCODE_LEFT = 37, KEYCODE_RIGHT = 39, leftHeld  = false, rightHeld = false;
+
+// disable page movement using cursor keys
+window.addEventListener("keydown", function(e) {
+  if ([37, 38, 39, 40, 65, 68, 73, 77, 83, 84, 87].indexOf(e.keyCode) > -1) {
+    e.preventDefault();
+  }
+}, false);
+
+// register document key functions
+document.onkeydown = handleKeyDown;
+document.onkeyup   = handleKeyUp;
+
+// registers keys that are held down
+var leftHeldTimer = 0;
+var rightHeldTimer = 0;
+
+// register global window event listener for click events
+window.addEventListener('click', clickHandler);
+
+ // get the canvas context
+var context = document.getElementById('canvas').getContext('2d');
+
+// player start position
+var playerX = 360;
+
+// global speed of player
+var playerSpeed = 10;
+
+// controls player direction
+var dir = 'right';
+
+// stunned value detects heavy object hit
+var stunned = false;
+
+// how many objects fall down
+var difficulty = 1;
+
+// starting time
+var initialTime = 60;
+var timeStart = initialTime;
+
+// handles requestAnimationFrame (much faster than setTimeout)
+var start = null;
+var progress = 0;
+
+// the beginning state
+var state = 'loading';
+
+// each state has its own counter
+var titleCounter = 0;
+var intructionsCounter = 0;
+var gameCounter = 0;
+var scoreCounter = 0;
+
+// reset score
+var score = 0;
+
+function handleKeyDown(e) {
+  switch(e.keyCode) {
+    case KEYCODE_LEFT:	leftHeld  = true; dir = 'left'; break;
+    case KEYCODE_RIGHT: rightHeld = true; dir = 'right'; break;
+  }
+}
+
+function handleKeyUp(e) {
+  switch(e.keyCode) {
+    case KEYCODE_LEFT:	leftHeld  = false; leftHeldTimer = 0; break;
+    case KEYCODE_RIGHT: rightHeld = false; rightHeldTimer = 0; break;
+  }
+}
+
+var assetsLoaded = false;
+
+// define image assets
+var images = [
+  {
+    id: 'title',
+    src: 'juan_title.jpg',
+    img: new Image()
+  },
+  {
+    id: 'button',
+    src: 'button.png',
+    img: new Image()
+  },
+  {
+    id: 'button_restart',
+    src: 'button_restart.png',
+    img: new Image()
+  },
+  {
+    id: 'frame1',
+    src: 'juan_anim_01.png',
+    img: new Image()
+  },
+  {
+    id: 'frame2',
+    src: 'juan_anim_02.png',
+    img: new Image()
+  },
+  {
+    id: 'frame3',
+    src: 'juan_anim_03.png',
+    img: new Image()
+  },
+  {
+    id: 'apple',
+    src: 'apple.png',
+    img: new Image()
+  },
+  {
+    id: 'tomato',
+    src: 'tomato.png',
+    img: new Image()
+  },
+  {
+    id: 'horse',
+    src: 'horse.png',
+    img: new Image()
+  },
+  {
+    id: 'splash',
+    src: 'splash.png',
+    img: new Image()
+  },
+  {
+    id: 'audio1',
+    src: 'icon_audio_main.png',
+    img: new Image()
+  },
+  {
+    id: 'audio2',
+    src: 'icon_audio_1.png',
+    img: new Image()
+  },
+  {
+    id: 'audio3',
+    src: 'icon_audio_2.png',
+    img: new Image()
+  },
+  {
+    id: 'audio4',
+    src: 'icon_audio_3.png',
+    img: new Image()
+  },
+  {
+    id: 'arrows',
+    src: 'icon_arrows.png',
+    img: new Image()
+  },
+  {
+    id: 'flat',
+    src: 'juan_flat.png',
+    img: new Image()
+  },
+  {
+    id: 'cat',
+    src: 'cat.png',
+    img: new Image()
+  },
+  {
+    id: 'dog',
+    src: 'dog.png',
+    img: new Image()
+  },
+  {
+    id: 'banana',
+    src: 'banana.png',
+    img: new Image()
+  },
+  {
+    id: 'piano',
+    src: 'piano.png',
+    img: new Image()
+  },
+  {
+    id: 'crashed_piano',
+    src: 'crashed_piano.png',
+    img: new Image()
+  },
+  {
+    id: 'background',
+    src: 'background.png',
+    img: new Image()
+  },
+  {
+    id: 'clock',
+    src: 'clock.png',
+    img: new Image()
+  },
+  {
+    id: 'score_screen',
+    src: 'score_screen.png',
+    img: new Image()
+  }
+];
+
+var frames = ['frame1', 'frame2', 'frame3', 'frame2'];
+var currentFrame = 0;
+var fruits = [];
+var splashes = [];
+var pianos = [];
+
+// call the loadImage function for each defined image
+images.map(image => {
+  loadImage(image);
+});
+
+function clickHandler(event) {
+    var scaleFactor = (800 / document.querySelector(".wrapper").offsetWidth);
+    // make sure only the canvas is targeted
+    var offsetLeft = (scaleFactor * document.getElementById("canvas").offsetLeft);
+    var offsetTop = (scaleFactor * document.getElementById("canvas").offsetTop);
+    // get coordinates relative to grid
+    var mouseX = (scaleFactor * event.clientX - offsetLeft);
+    var mouseY = (scaleFactor * event.clientY - offsetTop);
+
+    // register click on start button
+    if (state === 'title' && mouseX > 50 && mouseX < 280 && mouseY > 370 && mouseY < 440) {
+        intructionsCounter = 0;
+        // state = 'instructions';
+        state = 'instructions';
+        stopSound('title_music');
+    }
+
+        // register click on start button
+    if (state === 'score' && mouseX > 570 && mouseX < 720 && mouseY > 450 && mouseY < 520) {
+        state = 'title';
+        stopSound('score_music');
+        playSound('title_music');
+    }
+
+}
+
+// load the image assets by setting image.img.src to image.src
+function loadImage(image) {
+  image['img'].src = image['src']
+}
+
+function areAllImageAssetsLoaded() {
+  var loaded = true;
+
+  for (var loadedBitmap = 0; loadedBitmap < images.length; loadedBitmap ++) {
+    if (!images[loadedBitmap] || !images[loadedBitmap].img.naturalWidth) {
+      loaded = false;
+    }
+  }
+
+  return loaded;
+}
+
+function findImageObjectInArrayById(id) {
+        for (var imageObject = 0; imageObject < images.length; imageObject ++) {
+            if (images[imageObject]['id'] === id) {
+                return images[imageObject];
+            }
+        }
+    }
+
+function getBitmap(tileType) {
+      switch (tileType) {
+          case 1: return findImageObjectInArrayById('title');
+          default: return false;
+      }
+  }
+
+function playSound(sound, loop = false) {
+  document.getElementById(sound).muted = false;
+  document.getElementById(sound).play();
+
+  if (loop) {
+    document.getElementById(sound).addEventListener('timeupdate', function(){
+      var buffer = .3; // magic number, but it works
+      if (this.currentTime > this.duration - buffer) {
+          this.currentTime = 0;
+          this.play();
+      }}, false);
+    }
+  }
+
+  function stopSound(sound) {
+    document.getElementById(sound).position = 0;
+    document.getElementById(sound).muted = true;
+  }
+
+  function updateFruitPositions() {
+    var types = [
+      'tomato', 'banana', 'apple', 'apple', 'apple','apple' , 'apple', 'apple', 'apple', 'apple',
+      'tomato', 'banana', 'apple', 'apple', 'apple','apple' , 'apple', 'apple', 'apple', 'apple',
+      'cat', 'dog', 'apple', 'apple', 'apple','apple' , 'apple', 'apple', 'apple', 'apple',
+      'banana', 'banana', 'tomato', 'tomato', 'tomato', 'tomato', 'banana', 'horse', 'cat', 'cat', 'dog', 'dog', 'piano'
+      ];
+
+  var amountOfItems = (difficulty + parseInt(gameCounter/ 200)); // difficulty increases over time
+
+    if (fruits.length < amountOfItems) {
+      if (amountOfItems < 7) {
+
+        // always start with apples, then small animals to not spoil the surprise
+        var fruitType = types[parseInt(Math.random() * 10)];
+      } else if (amountOfItems < 21) {
+        var fruitType = types[parseInt(Math.random() * 30)];
+      } else {
+        var fruitType = types[parseInt(Math.random() * types.length)];
+      }
+
+      if (fruitType === 'horse') {
+        document.getElementById('sound_horse').currentTime  = 0;
+        playSound('sound_horse');
+      }
+
+      if (fruitType === 'cat') {
+        document.getElementById('sound_cat').currentTime  = 0;
+        playSound('sound_cat');
+      }
+
+      if (fruitType === 'dog') {
+        document.getElementById('sound_dog').currentTime  = 0;
+        playSound('sound_dog');
+      }
+
+      fruits.push(
+        {
+          type: fruitType,
+          x: Math.random() * (800 - ((findImageObjectInArrayById(fruitType)['img'].width / 2))), // this ugly line ensures items never appear partially outside of the screen
+          y: 0 - (Math.random() * 200) - 100,
+          size: 15 + (Math.random() * 5)
+        }
+      );
+    }
+
+    // update fruit positions
+    fruits.forEach((fruit, index) => {
+
+      var nextImg = findImageObjectInArrayById(fruit.type);
+
+      if (fruit.type === 'horse' || fruit.type === 'cat' || fruit.type === 'dog' || fruit.type === 'piano') {
+
+          if (fruit.type === 'horse') { var limit = 380 } // 280
+          if (fruit.type === 'cat') { var limit = 500 } // 400
+          if (fruit.type === 'dog') { var limit = 500 } // 400
+          if (fruit.type === 'piano') { var limit = 340 } // 280
+
+          // abnormal 'fruit'
+          if (fruit.y < limit) {
+            fruit.y += 10;
+
+            // own hit detection
+            var delta = 0;
+            var middleOfFruit = fruit.x + ((nextImg['img'].width) / 2); // doesnt take scale into account
+            var middleOfJuan = playerX + 55; // hardcoded!
+            if (middleOfJuan >= middleOfFruit) {
+              delta = middleOfJuan - middleOfFruit;
+            } else {
+                delta = middleOfFruit - middleOfJuan;
+            }
+
+            } else {
+
+              // walk out of screen
+              if (fruit.type === 'horse') {
+                fruit.x -= 25;
+                if (fruit.x < -200) {
+                  // remove
+                  fruits.splice(index, 1);
+                }
+              }
+
+              // walk out of screen
+              if (fruit.type === 'cat') {
+                fruit.x += 25;
+                if (fruit.x > 650) {
+                  // remove
+                  fruits.splice(index, 1);
+                }
+              }
+
+              // walk out of screen
+              if (fruit.type === 'dog') {
+                fruit.x += 25;
+                if (fruit.x > 650) {
+                  // remove
+                  fruits.splice(index, 1);
+                }
+              }
+
+              // crashed piano
+              if (fruit.type === 'piano') {
+                  // remove
+                  drawCrashedPianoAt(fruit.x, fruit.y);
+                  fruits.splice(index, 1);
+              }
+          }
+
+          if (!stunned && fruit.y > (limit - 100) && delta < 55) {
+            stunned = true;
+            stunnedCounter = 20;
+
+            // sometimes play voice sample
+            if (parseInt(Math.random() * 2) === 1) {playDiscomfortSound('general')};
+
+            // fruits.splice(index, 1); // optional removal of fallen object
+          }
+
+          context.drawImage(nextImg['img'], fruit.x, fruit.y, nextImg['img'].width, nextImg['img'].height); // these 'fruits' should not vary in size but stay in their own dimensions
+      } else {
+
+        // normal fruit
+        fruit.y += fruit.size / 3;
+
+        var delta = 0;
+        var middleOfFruit = fruit.x + ((nextImg['img'].width * fruit.size) / 30 / 2); // takes scale into account
+        var middleOfJuan = playerX + 55; // hardcoded!
+        if (middleOfJuan >= middleOfFruit) {delta = middleOfJuan - middleOfFruit} else {delta = middleOfFruit - middleOfJuan}
+
+        if (!stunned && fruit.y > 390 && delta < 55) {
+
+          // catch
+          if (fruit.type === 'apple') {
+            score += 1;
+
+            // eat apple
+            document.getElementById('sound_apple').currentTime  = 0;
+            playSound('sound_apple');
+
+            // sometimes play voice sample
+            if (parseInt(Math.random() * 10) === 1) {playDiscomfortSound('apple')};
+          }
+
+          if (fruit.type === 'tomato') {
+            gameCounter += 100; // subtract a second of the time left
+
+            // sometimes play voice sample
+            if (parseInt(Math.random() * 2) === 1) {playDiscomfortSound('tomato')};
+          }
+
+          if (fruit.type === 'banana') {
+            gameCounter += 100; // subtract a second of the time left
+
+            // sometimes play voice sample
+            if (parseInt(Math.random() * 2) === 1) {playDiscomfortSound('banana')};
+          }
+
+          fruits.splice(index, 1);
+        } else {
+
+          // splash
+          if (fruit.y > 560) {
+              drawFruitSplashAt(fruit.x, fruit.y);
+              fruits.splice(index, 1);
+          } else {
+            // draw normal fruit
+            context.drawImage(nextImg['img'], fruit.x, fruit.y, (nextImg['img'].width * fruit.size) / 30, (nextImg['img'].height * fruit.size) / 30);
+          }
+        }
+      }
+    });
+  }
+
+  function playDiscomfortSound(type) {
+    var sampleId = null;
+
+    switch(type) {
+      case 'apple': sampleId = 'sound_speech_apple'; break;
+      default: break;
+    }
+
+    // took this function out. couldnt get it to sound right.
+
+    if (sampleId) {
+        // document.getElementById(sampleId).currentTime  = 0;
+        // playSound(sampleId);
+    }
+  }
+
+  function drawFruitSplashAt(x, y) {
+    var nextImg = findImageObjectInArrayById('splash');
+
+    document.getElementById('splash').currentTime  = 0;
+    playSound('splash');
+
+    splashes.push(
+      {
+        x,
+        y,
+        varial: Math.random() * 10
+      }
+    )
+  }
+
+  function drawCrashedPianoAt(x, y) {
+    var nextImg = findImageObjectInArrayById('piano_crash');
+
+    document.getElementById('piano').currentTime  = 0;
+    playSound('piano');
+
+    pianos.push(
+      {
+        x,
+        y: y - 20,
+        varial: Math.random() * 50
+      }
+    )
+  }
+
+  function drawSplashes() {
+    splashes.forEach(splash => {
+      var nextImg = findImageObjectInArrayById('splash');
+      context.drawImage(nextImg['img'], splash.x - 25, splash.y + splash.varial);
+    })
+  }
+
+
+  function drawPianos() {
+    pianos.forEach(piano => {
+      var nextImg = findImageObjectInArrayById('crashed_piano');
+      context.drawImage(nextImg['img'], piano.x + 25, piano.y + 110);
+    })
+  }
+
+  function drawScore() {
+    context.beginPath();
+    context.arc(35, 15, 80, 0, 2 * Math.PI, false);
+    context.fillStyle = 'green';
+    context.fill();
+
+    context.beginPath();
+    context.arc(780, 15, 80, 0, 2 * Math.PI, false);
+    context.fillStyle = '#dd0000';
+    context.fill();
+
+    context.font = "30px Trebuchet MS";
+    context.fillStyle = "#ffffff";
+    context.fillText(score, 58, 50);
+    var nextImg = findImageObjectInArrayById('apple');
+    context.drawImage(nextImg['img'], 18, 23, nextImg['img'].width / 1.6, nextImg['img'].height / 1.6);
+
+    context.font = "30px Trebuchet MS";
+    context.fillStyle = "#ffffff";
+    var timeLeft = parseInt(timeStart - (gameCounter / 100));
+    context.fillText(timeLeft, 726, 50);
+    var nextImg = findImageObjectInArrayById('clock');
+    context.drawImage(nextImg['img'], 766, 28, nextImg['img'].width / 2, nextImg['img'].height / 2);
+
+    if (timeLeft <= 0) {
+      state = 'score';
+    }
+  }
+
+function updateCanvas(timestamp) {
+  clearCanvas();
+  if (assetsLoaded) {
+
+    switch(state) {
+      case 'title': {
+        // show title pic
+        var nextImg = findImageObjectInArrayById('title');
+        context.drawImage(nextImg['img'], 0, 0);
+        // show button
+        var varial = 5 * Math.sin(performance.now() / 200);
+        var nextImg = findImageObjectInArrayById('button');
+        context.drawImage(nextImg['img'], 50, 400 + varial);
+        // show audio symbol and animation
+        var nextImg = findImageObjectInArrayById('audio1');
+        context.drawImage(nextImg['img'], 52, 540);
+
+        context.font = "20px Trebuchet MS";
+        context.fillStyle = "#000";
+        context.fillText("subir el volumen, por favor!", 115, 562)
+
+        titleCounter+=.5;
+        if (titleCounter > 10) {
+          var nextImg = findImageObjectInArrayById('audio2');
+          context.drawImage(nextImg['img'], 81, 547);
+        }
+        if (titleCounter > 20) {
+          var nextImg = findImageObjectInArrayById('audio3');
+          context.drawImage(nextImg['img'], 86, 544);
+        }
+        if (titleCounter > 30) {
+          var nextImg = findImageObjectInArrayById('audio4');
+          context.drawImage(nextImg['img'], 92, 541);
+        }
+        if (titleCounter > 60) {
+          titleCounter = 0;
+        }
+
+        break;
+      }
+
+      case 'instructions': {
+        intructionsCounter+=0.01;
+
+        context.font = "30px Trebuchet MS";
+        context.fillStyle = "#fff";
+        context.save();
+        context.globalAlpha = 0+intructionsCounter;
+        context.fillText("Recuerda.. Juan come manzanas!", (800 / 2) - (context.measureText("Recuerda.. Juan come manzanas!").width / 2), 250);
+        context.restore();
+
+        var nextImg = findImageObjectInArrayById('arrows');
+        context.save();
+        context.globalAlpha = -1+intructionsCounter < 0 ? 0 : -1+intructionsCounter;
+        context.drawImage(nextImg['img'], 323, 340);
+        context.restore();
+
+        if (intructionsCounter > 3) {
+          state = 'game';
+          gameCounter = 0;
+          scoreCounter = 0;
+          score = 0;
+          fruits = [];
+          splashes = [];
+          pianos = [];
+          stunned = false;
+          timeStart = initialTime;
+          document.getElementById('ingame_music').position = 0;
+          playSound('ingame_music', true);
+        }
+
+        break;
+      }
+
+      case 'game': {
+        gameCounter++;
+
+        var nextImg = findImageObjectInArrayById('background');
+        context.drawImage(nextImg['img'], 0, 0);
+
+        drawPianos();
+        drawSplashes();
+
+        if (!stunned) {
+          var nextImg = findImageObjectInArrayById(frames[currentFrame]);
+
+          // if left, mirror canvas before drawing player
+          if (dir === 'left') {
+            context.save();
+            context.translate(playerX, 420);
+            context.scale(-1, 1);
+            context.drawImage(nextImg['img'], 0, 0, 114*-1, 165);
+            context.restore();
+          } else {
+            context.drawImage(nextImg['img'], playerX, 420, 114, 165);
+          }
+
+          if (leftHeld) {
+            leftHeldTimer++;
+            if (leftHeldTimer > 5) {
+              leftHeldTimer = 0;
+              currentFrame++;
+              if (currentFrame > 3) {currentFrame = 0}
+            }
+            playerX -= playerSpeed;
+            if (playerX<0){playerX=0}
+          };
+
+          if (rightHeld) {
+            rightHeldTimer++;
+            if (rightHeldTimer > 5) {
+              rightHeldTimer = 0;
+              currentFrame++;
+              if (currentFrame > 3) {currentFrame = 0}
+            }
+            playerX += playerSpeed;
+            if (playerX>685){playerX=685}
+          };
+        } else {
+          var nextImg = findImageObjectInArrayById('flat');
+
+          stunnedCounter--;
+          context.drawImage(nextImg['img'], playerX, 500, 165, 114);
+
+          if (stunnedCounter <= 0) {
+            stunned = false;
+          }
+        }
+
+        updateFruitPositions();
+        drawScore();
+
+        break;
+      }
+
+      case 'score': {
+        // show end pic
+        var nextImg = findImageObjectInArrayById('score_screen');
+        context.drawImage(nextImg['img'], 0, 0);
+
+        scoreCounter+=0.01;
+
+        context.font = "bold 30px Trebuchet MS";
+        context.fillStyle = "#000000";
+        context.fillText("Buen trabajo!", 330, 100);
+
+        context.save();
+        context.globalAlpha = -1+scoreCounter < 0 ? 0 : -1+scoreCounter;
+        context.font = "30px Trebuchet MS";
+        context.fillStyle = "#000000";
+        context.fillText("Tu resultado es..", 330, 146);
+        context.restore();
+
+        if (scoreCounter > 1.5) {
+          context.save();
+          context.globalAlpha = -1+(scoreCounter-1.5) < 0 ? 0 : -1+(scoreCounter-1.5);
+          context.font = "30px Trebuchet MS";
+          context.fillStyle = "#dd0000";
+          context.fillText(score + " puntos!", 330, 190);
+          context.restore();
+        }
+
+        if (scoreCounter > 2.5) {
+          context.save();
+          context.globalAlpha = -1+(scoreCounter-2.5) < 0 ? 0 : -1+(scoreCounter-2.5);
+          context.font = "30px Trebuchet MS";
+          context.fillStyle = "#000000";
+          if (score > 200) {
+            context.fillText("Es un nuevo Highscore!", 330, 300);
+            context.fillText("Felicidades!", 330, 260);
+          } else {
+            context.fillText("No es suficiente para Highscore,", 330, 260);
+            context.fillText("el Highscore es 200 puntos.", 330, 300);
+          }
+          context.restore();
+        }
+
+        if (scoreCounter > 4) {
+          context.save();
+          context.globalAlpha = -1+(scoreCounter-4) < 0 ? 0 : -1+(scoreCounter-4);
+          var varial = 5 * Math.sin(performance.now() / 200);
+          var nextImg = findImageObjectInArrayById('button_restart');
+          context.drawImage(nextImg['img'], 570, 500 + varial);
+          context.restore();
+        }
+
+        document.getElementById('score_music').position = 0;
+        stopSound('ingame_music');
+        playSound('score_music', true);
+
+        break;
+      }
+
+      default: {
+        // console.log('state error')
+      }
+    }
+
+  } else {
+    if (areAllImageAssetsLoaded()) {
+      if (document.getElementById('title_music').readyState === 4 && document.getElementById('ingame_music').readyState === 4 && document.getElementById('score_music').readyState === 4) {
+        assetsLoaded = true;
+
+        // switch state
+        state = 'title';
+
+        // play title music
+        playSound('title_music');
+      } else {
+        // preloading sounds
+      }
+    }
+
+    // loader
+    context.font = "30px Trebuchet MS";
+    context.fillStyle = "#fff";
+    context.fillText("un momento por favor!", (800 / 2) - (context.measureText("un momento por favor!").width / 2), 250);
+  }
+
+  if (!start) { start = timestamp };
+  progress = timestamp - start;
+  if (progress < 1000) {
+    start = null;
+    window.requestAnimationFrame(updateCanvas);
+  }
+}
+
+function clearCanvas() {
+  context.fillStyle = '#000';
+  context.fillRect(0, 0, 800, 600);
+}
+
+// trigger update function
+window.requestAnimationFrame(updateCanvas);
+
+</script>
+
+</body>
+</html>
